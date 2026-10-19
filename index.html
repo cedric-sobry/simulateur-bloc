@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulateur bloc Base / Peak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F3F5F6; --surface: #FFFFFF; --ink: #16202A; --muted: #5A6672; --line: #DCE1E5; --soft: #E9EDF0;
+  --base: #1F7A74; --peak: #C9820E; --buy: #C2483B; --sell: #2F64A8; --focus: #2F64A8;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151B; --surface: #161F27; --ink: #E7ECF0; --muted: #98A5B0; --line: #2A3641; --soft: #1D2832;
+    --base: #3DB2A7; --peak: #F0A93A; --buy: #E5685A; --sell: #6E9DE2; --focus: #6E9DE2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151B; --surface: #161F27; --ink: #E7ECF0; --muted: #98A5B0; --line: #2A3641; --soft: #1D2832;
+  --base: #3DB2A7; --peak: #F0A93A; --buy: #E5685A; --sell: #6E9DE2; --focus: #6E9DE2;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif; font-size: 15px; line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 28px 24px 64px; }
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+h1 { font-stretch: 75%; font-weight: 700; font-size: 30px; letter-spacing: -0.01em; margin: 0; line-height: 1.1; }
+.lede { color: var(--muted); margin: 6px 0 0; max-width: 62ch; }
+h2 { font-stretch: 85%; font-weight: 650; font-size: 19px; margin: 0 0 4px; }
+.sub { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; }
+
+/* Import */
+#drop {
+  border: 1.5px dashed var(--line); border-radius: 10px; background: var(--surface);
+  padding: 56px 24px; text-align: center; transition: border-color .15s, background .15s;
+}
+#drop.over { border-color: var(--sell); background: var(--soft); }
+#drop p { margin: 8px auto 0; color: var(--muted); max-width: 52ch; }
+.loaded #drop { display: none; }
+.btn, .ghost {
+  font: inherit; font-weight: 600; font-size: 14px; border-radius: 7px; cursor: pointer; padding: 9px 14px;
+  border: 1px solid var(--ink); background: var(--ink); color: var(--surface);
+}
+.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.ghost:hover { border-color: var(--muted); }
+.small { padding: 5px 9px; font-size: 12.5px; font-weight: 500; }
+label.filebtn { display: inline-block; }
+label.filebtn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+#status { color: var(--buy); margin-top: 14px; min-height: 1.5em; font-size: 14px; }
+
+/* Grille */
+.app { display: none; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; align-items: start; }
+.loaded .app { display: grid; }
+aside {
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px;
+  max-height: calc(100vh - 32px); overflow-y: auto;
+}
+aside section + section { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
+aside h3 { font-size: 13.5px; font-weight: 650; margin: 0 0 10px; }
+.prm { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center; padding: 4px 0; cursor: pointer; }
+.prm-id { font-weight: 550; }
+.prm-kw { grid-column: 2; color: var(--muted); font-size: 12.5px; }
+.field { display: grid; grid-template-columns: 1fr 92px; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 13.5px; }
+input[type=number], input[type=date], .scen-name {
+  font: inherit; font-size: 13.5px; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0;
+}
+.radio { display: flex; gap: 8px; align-items: center; font-size: 13.5px; padding: 3px 0; cursor: pointer; }
+#custom { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+#custom[hidden] { display: none; }
+.scen { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px dashed var(--line); }
+.scen-name { font-weight: 550; margin-bottom: 8px; }
+.scen-dates { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.scen-dates span { display: block; font-size: 11.5px; color: var(--muted); }
+select { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 4px; width: 100%; min-width: 0; }
+table.strip { font-size: 12.5px; margin-bottom: 6px; }
+table.strip th, table.strip td { padding: 3px 6px 3px 0; border-bottom: 0; }
+table.strip thead th { border-bottom: 1px solid var(--line); font-size: 11.5px; }
+table.strip tbody th { font-weight: 500; white-space: nowrap; }
+table.strip input { padding: 4px 6px; font-size: 12.5px; }
+.strip-avg { font-size: 12.5px; color: var(--muted); margin: 0 0 8px; }
+.warn { color: var(--buy) !important; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
+
+/* Héro */
+.hero { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); gap: 28px; align-items: stretch; margin-bottom: 28px; }
+.statement { padding: 6px 0; }
+#heroTag { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+.bloc-type { font-stretch: 68%; font-weight: 750; line-height: 0.92; letter-spacing: -0.02em; margin: 0; }
+.bloc-type .row { display: flex; align-items: baseline; gap: 12px; }
+.bloc-type .num { font-size: clamp(64px, 8vw, 104px); }
+.bloc-type .unit { font-size: clamp(18px, 2vw, 24px); font-weight: 600; font-stretch: 85%; letter-spacing: 0; }
+.bloc-type .row.b .num { color: var(--base); }
+.bloc-type .row.p .num { color: var(--peak); }
+.bloc-type .plus { font-size: clamp(26px, 3vw, 36px); color: var(--muted); font-weight: 500; margin: 2px 0; }
+#heroSub { color: var(--ink); margin: 16px 0 6px; max-width: 46ch; }
+#scope { color: var(--muted); font-size: 13px; margin: 0; max-width: 52ch; }
+.tune { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 18px; }
+.tune label { font-size: 12.5px; color: var(--muted); }
+.tune input { width: 96px; display: block; margin-top: 3px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 14px; min-width: 0; }
+.chart { position: relative; height: 280px; }
+.hero .chart { height: 300px; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--ink); border-bottom: 1px solid var(--line); margin-bottom: 32px; }
+.kpi { padding: 14px 16px 16px 0; }
+.kpi + .kpi { padding-left: 16px; border-left: 1px solid var(--line); }
+.kpi-l { font-size: 13px; color: var(--muted); }
+.kpi-v { font-stretch: 80%; font-size: 30px; font-weight: 650; line-height: 1.15; margin: 2px 0; }
+.kpi-s { font-size: 12.5px; color: var(--muted); }
+
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 32px; }
+.block { margin-bottom: 32px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-weight: 600; color: var(--muted); font-size: 12.5px; border-bottom-color: var(--ink); }
+tbody th { font-weight: 500; }
+#cands tbody tr { cursor: pointer; }
+#cands tbody tr:hover td { background: var(--soft); }
+#cands tr.sel td { font-weight: 650; }
+#cands tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--ink); padding-left: 10px; }
+#cands td:first-child { padding-left: 10px; }
+.legend-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+#note { max-width: 74ch; }
+#note p { margin: 0 0 12px; }
+.cform { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 14px; }
+.cform fieldset { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 12px 14px 14px; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; align-content: start; }
+.cform legend { font-weight: 650; font-size: 13.5px; padding: 0 4px; }
+.cform label { font-size: 12.5px; color: var(--muted); display: block; }
+.cform label.wide { grid-column: 1 / -1; }
+.cform label.check { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: 13px; }
+.cform input:not([type=checkbox]), .cform select { display: block; margin-top: 3px; width: 100%; font: inherit; font-size: 13.5px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.c-todo { font-size: 13.5px; color: var(--muted); margin: 0 0 12px; }
+.contract { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 26px 30px; max-width: 860px; line-height: 1.6; }
+.contract h3 { font-stretch: 80%; font-size: 22px; margin: 6px 0 14px; }
+.contract h4 { font-size: 15px; margin: 20px 0 6px; }
+.contract p, .contract li { font-size: 14px; }
+.contract p { margin: 0 0 8px; }
+.contract ul, .contract ol { margin: 0 0 8px; padding-left: 20px; }
+.contract mark { background: color-mix(in srgb, var(--peak) 28%, transparent); color: var(--ink); padding: 0 3px; border-radius: 3px; }
+.c-warn { border-left: 3px solid var(--buy); padding: 6px 0 6px 12px; color: var(--ink); }
+.c-flag { border-left: 3px solid var(--peak); padding: 6px 0 6px 12px; }
+.c-table { font-size: 13px; }
+.c-table td, .c-table th { padding: 6px 10px 6px 0; }
+@media (max-width: 760px) { .cform { grid-template-columns: minmax(0, 1fr); } .contract { padding: 18px 16px; } }
+
+.note-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.empty-sel > * { opacity: .35; pointer-events: none; }
+.ex-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.ex-ctrl { display: flex; gap: 10px; }
+.ex-ctrl label { font-size: 12.5px; color: var(--muted); }
+.ex-ctrl select { display: block; margin-top: 3px; min-width: 150px; font-size: 14px; padding: 7px 6px; }
+.ex-ctrl select:disabled { opacity: .45; }
+.ex-ctrl input[type=date] { display: block; margin-top: 3px; font-size: 14px; padding: 6px; }
+.ex-ctrl label[hidden] { display: none; }
+.ex-sum { font-size: 14px; margin: 4px 0 12px; max-width: 90ch; }
+.ex-chart { height: 340px; }
+.ex-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 0 0 14px; max-width: 640px; }
+.ex-kpis .kpi { padding: 10px 16px 12px 0; }
+.ex-kpis .kpi + .kpi { padding-left: 16px; border-left: 1px solid var(--line); }
+.ex-kpis .kpi-v { font-size: 26px; }
+.ex-kpis .kpi.buy .kpi-v { color: var(--buy); }
+.ex-kpis .kpi.sell .kpi-v { color: var(--sell); }
+@media (max-width: 520px) { .ex-kpis { grid-template-columns: minmax(0, 1fr); } .ex-kpis .kpi + .kpi { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); } }
+
+@media (max-width: 1020px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  aside { position: static; max-height: none; order: 2; }
+  .hero { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 680px) {
+  .wrap { padding: 20px 14px 48px; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:nth-child(3) { border-left: 0; padding-left: 0; }
+  .kpi:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .chart { height: 240px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Simulateur bloc Base / Peak</h1>
+      <p class="lede">Chargez une ou plusieurs courbes de charge Enedis R63. Le simulateur cherche le bloc qui colle le mieux à la consommation et mesure ce qui reste exposé au spot.</p>
+    </div>
+    <label class="filebtn ghost loaded-only" id="addMore" hidden>Ajouter des courbes<input type="file" id="file2" accept=".zip,.csv" multiple></label>
+  </header>
+
+  <div id="drop">
+    <label class="filebtn btn">Choisir des fichiers<input type="file" id="file" accept=".zip,.csv" multiple></label>
+    <p>Ou déposez-les ici. Fichiers R63 au format ZIP ou CSV, un ou plusieurs PRM. Tout est calculé dans votre navigateur, rien n’est envoyé.</p>
+  </div>
+  <div id="status" role="status"></div>
+
+  <div class="app">
+    <aside aria-label="Paramètres">
+      <section>
+        <h3>PRM du périmètre</h3>
+        <div id="prms"></div>
+        <p class="hint">Les PRM cochés sont additionnés pour former un seul bloc.</p>
+      </section>
+      <section>
+        <h3>Période analysée</h3>
+        <label class="radio"><input type="radio" name="period" value="12m"> 12 derniers mois</label>
+        <label class="radio"><input type="radio" name="period" value="all"> Tout l’historique</label>
+        <label class="radio"><input type="radio" name="period" value="custom"> Dates choisies</label>
+        <div id="custom" hidden><input type="date" id="from" aria-label="Début"><input type="date" id="to" aria-label="Fin"></div>
+      </section>
+      <section>
+        <h3>Produits</h3>
+        <div class="field"><span>Pas de bloc (MW)</span><input type="number" id="stepMW" min="0.01" step="0.01"></div>
+        <div class="field"><span>Début Peak (h)</span><input type="number" id="peakStart" min="0" max="23" step="1"></div>
+        <div class="field"><span>Fin Peak (h)</span><input type="number" id="peakEnd" min="1" max="24" step="1"></div>
+        <p class="hint">Peak du lundi au vendredi, jours fériés inclus.</p>
+      </section>
+      <section>
+        <h3>Scénarios de prix (€/MWh)</h3>
+        <div id="scen"></div>
+        <button class="ghost small" id="addScen">Ajouter un scénario</button>
+      </section>
+      <section>
+        <h3>Hypothèses spot (€/MWh)</h3>
+        <div class="field"><span>Prix moyen payé sur les achats</span><input type="number" id="spotBuy" step="0.01" placeholder="–"></div>
+        <div class="field"><span>Prix moyen reçu sur les reventes</span><input type="number" id="spotSell" step="0.01" placeholder="–"></div>
+        <p class="hint">Facultatif. Renseignez les deux pour obtenir le coût complet bloc + spot.</p>
+      </section>
+      <section>
+        <button class="ghost small" id="reset">Rétablir les paramètres par défaut</button>
+      </section>
+    </aside>
+
+    <main id="main">
+      <div class="hero">
+        <div class="statement">
+          <p id="heroTag"></p>
+          <div class="bloc-type" aria-live="polite">
+            <div class="row b"><span class="num" id="heroB"></span><span class="unit">MW Base</span></div>
+            <div class="plus">+</div>
+            <div class="row p"><span class="num" id="heroP"></span><span class="unit">MW Peak</span></div>
+          </div>
+          <p id="heroSub"></p>
+          <p id="scope"></p>
+          <div class="tune">
+            <label>Base (MW)<input type="number" id="bStep" min="0"></label>
+            <label>Peak (MW)<input type="number" id="pStep" min="0"></label>
+            <button class="ghost small" id="toOpt">Revenir à l’optimum</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Journée type : consommation et bloc</h2>
+          <p class="sub">Moyenne horaire des jours ouvrés et des week-ends, face au bloc empilé Base + Peak.</p>
+          <div class="chart"><canvas id="chProfile" aria-label="Profil horaire moyen et bloc"></canvas></div>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="block">
+        <h2>Blocs les mieux ajustés</h2>
+        <p class="sub">Classés par indice d’écart : la somme des écarts au carré entre la courbe et le bloc, rapportée au meilleur bloc (1,00). Cliquez une ligne pour l’analyser.</p>
+        <div class="tablewrap"><table id="cands"></table></div>
+      </div>
+
+      <div class="panel block" id="explorer">
+        <div class="ex-head">
+          <div>
+            <h2>Explorer un mois et un jour</h2>
+            <p class="sub">Profil moyen des jours choisis : soutirage au spot au-dessus de l’axe, injection du surplus en dessous.</p>
+          </div>
+          <div class="ex-ctrl">
+            <label>Mois<select id="exMonth"></select></label>
+            <label>Jour<select id="exDay"></select></label>
+            <label id="exDateWrap" hidden>Date<input type="date" id="exDate"></label>
+          </div>
+        </div>
+        <p id="exSum" class="ex-sum" aria-live="polite"></p>
+        <div class="ex-kpis" id="exKpis"></div>
+        <div class="chart ex-chart"><canvas id="chEx" aria-label="Soutirage et injection au spot pour la sélection"></canvas></div>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <h2>Achats et surplus par heure</h2>
+          <p class="sub"><span class="legend-key" style="background:var(--buy)"></span>achat au-dessus de l’axe, <span class="legend-key" style="background:var(--sell)"></span>surplus en dessous.</p>
+          <div class="chart"><canvas id="chHours" aria-label="Achats et surplus par heure"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2>Achats et surplus par mois</h2>
+          <p class="sub">Volumes réels de chaque mois de la période.</p>
+          <div class="chart"><canvas id="chMonths" aria-label="Achats et surplus par mois"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <h2>Monotone de consommation</h2>
+          <p class="sub">Puissance triée de la plus forte à la plus faible, avec les deux niveaux du bloc.</p>
+          <div class="chart"><canvas id="chMono" aria-label="Monotone de consommation"></canvas></div>
+        </div>
+        <div>
+          <h2>Heures exposées</h2>
+          <p class="sub">Volumes et heures ramenés à une année.</p>
+          <div class="tablewrap"><table id="hours"></table></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <h2>Où tombe le surplus</h2>
+        <p class="sub">Énergie du bloc non consommée, revendue au spot par le Responsable d’Équilibre. Les zones se recoupent, leurs volumes ne s’additionnent pas.</p>
+        <div class="tablewrap"><table id="zones"></table></div>
+      </div>
+
+      <div class="block">
+        <h2>Coût du bloc par scénario</h2>
+        <p class="sub">Prix du bloc pondéré produit par produit : heures Base et jours ouvrés Peak de chaque mois ou année du strip. Volume et coût sur toute la durée du scénario.</p>
+        <div class="tablewrap"><table id="costs"></table></div>
+      </div>
+
+      <div class="block">
+        <div class="note-head"><h2>Note d’analyse</h2><button class="ghost small" id="copyNote">Copier la note</button></div>
+        <p class="sub">Rédigée automatiquement à partir du bloc affiché.</p>
+        <div id="note"></div>
+      </div>
+
+      <div class="block" id="contractBlock">
+        <div class="note-head"><h2>Conditions particulières</h2><button class="ghost small" id="copyContract">Copier les conditions</button></div>
+        <p class="sub">Projet de contrat Bloc + Spot rempli avec le bloc, le scénario et le périmètre affichés. Renseignez les conditions commerciales, puis copiez le texte dans votre modèle.</p>
+        <div id="cform" class="cform">
+          <fieldset><legend>Client</legend>
+            <label>Raison sociale<input data-c="clientName"></label>
+            <label>SIREN<input data-c="clientSiren" inputmode="numeric"></label>
+            <label class="wide">Adresse du siège<input data-c="clientAddress"></label>
+            <label>Signataire et qualité<input data-c="clientSigner" placeholder="Nom, fonction"></label>
+            <label>Segment<select data-c="segment"><option value="C5">C5 (≤ 36 kVA)</option><option value="C4">C4 (&gt; 36 kVA)</option><option value="HTA">HTA</option></select></label>
+            <label class="check wide"><input type="checkbox" data-c="petitPro"> Petit consommateur professionnel (microentreprise, ou ≤ 36 kVA)</label>
+          </fieldset>
+          <fieldset><legend>Contrat</legend>
+            <label>Scénario de prix<select data-c="scen" id="cScen"></select></label>
+            <label>Début de fourniture<input type="date" data-c="startDate"></label>
+            <label>Validité de l’offre (h)<input type="number" min="1" data-c="validityH"></label>
+            <label>Dépôt de garantie (mois)<input type="number" min="0" step="0.5" data-c="deposit"></label>
+            <label>Frais de résiliation (€ HT)<input type="number" min="0" data-c="exitFee"></label>
+          </fieldset>
+          <fieldset><legend>Spot et frais</legend>
+            <label>Frais sur soutirage spot (€/MWh)<input type="number" step="0.01" data-c="feeBuy"></label>
+            <label>Frais sur revente du surplus (€/MWh)<input type="number" step="0.01" data-c="feeSell"></label>
+            <label>Frais de gestion (€/mois)<input type="number" step="0.01" data-c="feeMonthly"></label>
+            <label class="wide">Surplus à prix négatif<select data-c="negPrice"><option value="client">Répercuté au Client (montant négatif facturé)</option><option value="floor0">Non valorisé (plancher à 0 €)</option></select></label>
+          </fieldset>
+          <fieldset><legend>Autres composantes</legend>
+            <label>Capacité<select data-c="capacity"><option value="reel">Au réel (quote-part Pref)</option><option value="forfait">Au forfait</option></select></label>
+            <label>Forfait capacité (€/MWh)<input type="number" step="0.01" data-c="capaPrice"></label>
+            <label>CEE (€/MWh)<input type="number" step="0.01" data-c="ceePrice"></label>
+            <label class="check"><input type="checkbox" data-c="goOpt"> Garanties d’origine</label>
+            <label>Prix GO (€/MWh)<input type="number" step="0.01" data-c="goPrice"></label>
+          </fieldset>
+        </div>
+        <p id="cTodo" class="c-todo" aria-live="polite"></p>
+        <article id="contract" class="contract"></article>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script>
+// ===== Moteur de calcul : lecture R63, agrégation, optimisation du bloc =====
+const Core = (() => {
+  const pad = n => String(n).padStart(2, '0');
+
+  function easter(y) {
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
+      f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+      i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+      month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    return Date.UTC(y, month - 1, day);
+  }
+  const holCache = {};
+  function holidays(y) {
+    if (holCache[y]) return holCache[y];
+    const s = new Set(['01-01', '05-01', '05-08', '07-14', '08-15', '11-01', '11-11', '12-25']);
+    const e = easter(y), add = (t, dd) => { const x = new Date(t + dd * 864e5); s.add(pad(x.getUTCMonth() + 1) + '-' + pad(x.getUTCDate())); };
+    add(e, 1); add(e, 39); add(e, 50);
+    return (holCache[y] = s);
+  }
+
+  function parseStep(p) {
+    const m = /PT(\d+)M/.exec(p || '');
+    if (m) return +m[1];
+    const h = /PT(\d+)H/.exec(p || '');
+    return h ? +h[1] * 60 : null;
+  }
+
+  // Lit un CSV R63 (texte) -> { prm: {step, map: Map(key -> W)} }
+  function parseR63(text) {
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+    let pos = text.indexOf('\n');
+    const header = text.slice(0, pos).replace(/\r$/, '').split(';').map(s => s.trim());
+    const col = n => header.indexOf(n);
+    const iP = col('Identifiant PRM'), iG = col('Grandeur physique'), iH = col('Horodate'), iV = col('Valeur'), iS = col('Pas');
+    if (iP < 0 || iH < 0 || iV < 0) throw new Error('Colonnes Enedis introuvables (Identifiant PRM, Horodate, Valeur).');
+    const out = {};
+    const len = text.length;
+    let start = pos + 1;
+    while (start < len) {
+      let end = text.indexOf('\n', start);
+      if (end < 0) end = len;
+      const line = text.slice(start, end);
+      start = end + 1;
+      if (line.length < 10) continue;
+      const f = line.split(';');
+      if (iG >= 0 && f[iG] !== 'PA') continue;
+      const v = parseFloat(f[iV]);
+      if (!isFinite(v)) continue;
+      const prm = f[iP];
+      let o = out[prm];
+      if (!o) o = out[prm] = { steps: {}, map: new Map(), seen: new Map() };
+      const ts = f[iH].slice(0, 16);
+      const occ = o.seen.get(ts) || 0;
+      o.seen.set(ts, occ + 1);
+      o.map.set(ts + '#' + occ, v);
+      const st = iS >= 0 ? f[iS] : 'PT5M';
+      o.steps[st] = (o.steps[st] || 0) + 1;
+    }
+    for (const prm in out) {
+      const o = out[prm];
+      const best = Object.entries(o.steps).sort((a, b) => b[1] - a[1])[0];
+      o.step = parseStep(best && best[0]) || 5;
+      delete o.seen; delete o.steps;
+    }
+    return out;
+  }
+
+  // Ramène une courbe à un pas S (minutes) par moyenne
+  function resample(map, S) {
+    const acc = new Map();
+    for (const [k, v] of map) {
+      const mm = +k.slice(14, 16), fl = Math.floor(mm / S) * S;
+      const hh = k.slice(11, 13);
+      let key;
+      if (S >= 60) {
+        const hs = Math.floor(+hh / (S / 60)) * (S / 60);
+        key = k.slice(0, 11) + pad(hs) + ':00' + k.slice(16);
+      } else key = k.slice(0, 14) + pad(fl) + k.slice(16);
+      const a = acc.get(key);
+      if (a) { a[0] += v; a[1]++; } else acc.set(key, [v, 1]);
+    }
+    const res = new Map();
+    for (const [k, a] of acc) res.set(k, a[0] / a[1]);
+    return res;
+  }
+
+  // Agrège les PRM sélectionnés -> série unique (MW), au pas commun
+  function aggregate(curves, prms) {
+    const S = Math.max(...prms.map(p => curves[p].step));
+    const maps = prms.map(p => (curves[p].step === S ? curves[p].map : resample(curves[p].map, S)));
+    let keys = [...maps[0].keys()];
+    let dropped = 0;
+    if (maps.length > 1) {
+      const before = new Set(keys);
+      maps.slice(1).forEach(m => m.forEach((_, k) => before.add(k)));
+      keys = keys.filter(k => maps.every(m => m.has(k)));
+      dropped = before.size - keys.length;
+    }
+    keys.sort();
+    const n = keys.length, c = new Float64Array(n);
+    for (let i = 0; i < n; i++) { let s = 0; for (const m of maps) s += m.get(keys[i]); c[i] = s / 1e6; }
+    return { keys, c, step: S, dropped };
+  }
+
+  function addDays(dateStr, dd) {
+    const t = Date.UTC(+dateStr.slice(0, 4), +dateStr.slice(5, 7) - 1, +dateStr.slice(8, 10)) + dd * 864e5;
+    const x = new Date(t);
+    return x.getUTCFullYear() + '-' + pad(x.getUTCMonth() + 1) + '-' + pad(x.getUTCDate());
+  }
+
+  // Découpe une période et calcule les attributs calendaires
+  function frame(series, opts) {
+    const { keys, c, step } = series;
+    const first = keys[0].slice(0, 10), last = keys[keys.length - 1].slice(0, 10);
+    let from = first, to = addDays(last, 1); // to exclusif
+    if (opts.period === '12m') {
+      const y = +to.slice(0, 4) - 1;
+      from = y + to.slice(4);
+      if (from < first) from = first;
+    } else if (opts.period === 'custom' && opts.from && opts.to) {
+      from = opts.from; to = addDays(opts.to, 1);
+    }
+    const idx = [];
+    for (let i = 0; i < keys.length; i++) { const d = keys[i].slice(0, 10); if (d >= from && d < to) idx.push(i); }
+    const n = idx.length;
+    const C = new Float64Array(n), pk = new Uint8Array(n), hr = new Uint8Array(n), mo = new Uint8Array(n), dt = new Uint8Array(n), wdj = new Uint8Array(n), sl = new Uint16Array(n), dayN = new Int32Array(n);
+    const monthKey = new Array(n);
+    for (let j = 0; j < n; j++) {
+      const k = keys[idx[j]];
+      const y = +k.slice(0, 4), m = +k.slice(5, 7), d = +k.slice(8, 10), h = +k.slice(11, 13);
+      const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+      const fer = holidays(y).has(k.slice(5, 10));
+      C[j] = c[idx[j]]; hr[j] = h; mo[j] = m; monthKey[j] = k.slice(0, 7);
+      wdj[j] = wd; sl[j] = Math.floor((h * 60 + +k.slice(14, 16)) / step); dayN[j] = Math.round(Date.UTC(y, m - 1, d) / 864e5);
+      dt[j] = fer ? 2 : (wd === 0 || wd === 6 ? 1 : 0);
+      pk[j] = wd >= 1 && wd <= 5 && h >= opts.peakStart && h < opts.peakEnd ? 1 : 0;
+    }
+    const hours = n * step / 60;
+    // croissance : 12 derniers mois vs 12 précédents (sur la série complète)
+    let growth = null;
+    const lastTo = addDays(last, 1), y1 = (+lastTo.slice(0, 4) - 1) + lastTo.slice(4), y2 = (+lastTo.slice(0, 4) - 2) + lastTo.slice(4);
+    if (first <= y2) {
+      let a = 0, b = 0;
+      for (let i = 0; i < keys.length; i++) { const d = keys[i].slice(0, 10); if (d >= y1) a += c[i]; else if (d >= y2) b += c[i]; }
+      growth = { last: a * step / 60, prev: b * step / 60 };
+    }
+    return { C, pk, hr, mo, dt, wdj, sl, dayN, monthKey, step, n, hours, from, to: addDays(to, -1), growth };
+  }
+
+  // Optimisation : moindres carrés sur grille, formule fermée
+  function optimise(F, stepMW) {
+    const { C, pk, n } = F;
+    let nOff = 0, sOff = 0, nPk = 0, sPk = 0, sq = 0, mx = 0;
+    for (let i = 0; i < n; i++) { const v = C[i]; sq += v * v; if (v > mx) mx = v; if (pk[i]) { nPk++; sPk += v; } else { nOff++; sOff += v; } }
+    const mOff = nOff ? sOff / nOff : 0, mPk = nPk ? sPk / nPk : 0;
+    const nb = Math.min(400, Math.ceil(Math.max(mOff, mPk) * 2 / stepMW) + 2), np = Math.min(400, Math.ceil(mPk * 2 / stepMW) + 2);
+    const grid = [];
+    for (let i = 0; i <= nb; i++) for (let j = 0; j <= np; j++) {
+      const B = i * stepMW, P = j * stepMW, BP = B + P;
+      const sse = sq - 2 * B * sOff + nOff * B * B - 2 * BP * sPk + nPk * BP * BP;
+      grid.push({ i, j, B, P, sse });
+    }
+    grid.sort((a, b) => a.sse - b.sse);
+    const best = grid[0].sse || 1;
+    grid.forEach(g => (g.idx = g.sse / best));
+    return { grid, mOff, mPk, mx, cont: { B: mOff, P: Math.max(0, mPk - mOff) }, mean: (sOff + sPk) / n };
+  }
+
+  // Indicateurs détaillés pour un bloc donné
+  function evaluate(F, B, P, opts) {
+    const { C, pk, hr, mo, dt, n, step, monthKey } = F;
+    const h = step / 60, ps = opts.peakStart, pe = opts.peakEnd;
+    const r = {
+      conso: 0, bloc: 0, ach: 0, inj: 0, hAch: 0, hInj: 0, hAchPk: 0, hAchOff: 0, hInjPk: 0, hInjOff: 0,
+      achPk: 0, achOff: 0, injPk: 0, injOff: 0, maxAch: 0, maxInj: 0,
+      byHourAch: new Float64Array(24), byHourInj: new Float64Array(24), wdProfile: new Float64Array(24), wdCount: new Float64Array(24),
+      weProfile: new Float64Array(24), weCount: new Float64Array(24),
+      dtype: [0, 1, 2].map(() => ({ h: 0, hInj: 0, inj: 0, hAch: 0, ach: 0 })),
+      zones: { finPeak: 0, finPeakHiver: 0, solaire: 0, hSolaire: 0, avantPeak: 0 },
+      months: {}
+    };
+    for (let i = 0; i < n; i++) {
+      const v = C[i], b = B + P * pk[i], d = v - b, H = hr[i], T = dt[i];
+      r.conso += v * h; r.bloc += b * h;
+      let mk = r.months[monthKey[i]];
+      if (!mk) mk = r.months[monthKey[i]] = { m: mo[i], conso: 0, ach: 0, inj: 0 };
+      mk.conso += v * h;
+      const z = r.dtype[T]; z.h += h;
+      if (T === 0) { r.wdProfile[H] += v; r.wdCount[H]++; } else { r.weProfile[H] += v; r.weCount[H]++; }
+      if (d > 0) {
+        const e = d * h;
+        r.ach += e; r.hAch += h; r.byHourAch[H] += e; mk.ach += e; z.ach += e; z.hAch += h;
+        if (pk[i]) { r.achPk += e; r.hAchPk += h; } else { r.achOff += e; r.hAchOff += h; }
+        if (d > r.maxAch) r.maxAch = d;
+        if (H >= ps - 3 && H < ps) r.zones.avantPeak += e;
+      } else if (d < 0) {
+        const e = -d * h;
+        r.inj += e; r.hInj += h; r.byHourInj[H] += e; mk.inj += e; z.inj += e; z.hInj += h;
+        if (pk[i]) { r.injPk += e; r.hInjPk += h; } else { r.injOff += e; r.hInjOff += h; }
+        if (-d > r.maxInj) r.maxInj = -d;
+        if (T === 0 && H >= pe - 3 && H < pe) { r.zones.finPeak += e; if (mo[i] <= 3 || mo[i] >= 10) r.zones.finPeakHiver += e; }
+        if (mo[i] >= 4 && mo[i] <= 9 && H >= 10 && H < 17) { r.zones.solaire += e; r.zones.hSolaire += h; }
+      }
+    }
+    for (let H = 0; H < 24; H++) { r.wdProfile[H] = r.wdCount[H] ? r.wdProfile[H] / r.wdCount[H] : 0; r.weProfile[H] = r.weCount[H] ? r.weProfile[H] / r.weCount[H] : 0; }
+    let hPk = 0; for (let i = 0; i < n; i++) if (pk[i]) hPk++;
+    r.hoursPk = hPk * h; r.hoursAll = n * h;
+    return r;
+  }
+
+  return { parseR63, aggregate, frame, optimise, evaluate, holidays };
+})();
+
+
+</script>
+<script>
+// ===== Interface =====
+(() => {
+  const $ = s => document.querySelector(s);
+  const nf = (v, d = 0) => (isFinite(v) ? v.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '–');
+  const pct = (v, d = 1) => nf(v * 100, d) + ' %';
+  const mw = v => nf(v, 2) + ' MW';
+  const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const MONTHS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const fd = s => s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4);
+
+  const DEFAULTS = {
+    stepMW: 0.05, peakStart: 8, peakEnd: 20, period: '12m', from: '', to: '',
+    scenarios: [
+      { name: '3 ans', startMonth: 11, startYear: 2026, endYear: 2029, prices: { 'M2026-11': { base: 177, peak: 207 }, 'M2026-12': { base: 175, peak: 209 }, C2027: { base: 115, peak: 122 }, C2028: { base: 73, peak: 84 }, C2029: { base: 67, peak: 80 } } },
+      { name: '2 ans', startMonth: 11, startYear: 2026, endYear: 2028, prices: { 'M2026-11': { base: 177, peak: 207 }, 'M2026-12': { base: 175, peak: 209 }, C2027: { base: 115, peak: 122 }, C2028: { base: 73, peak: 84 } } }
+    ],
+    spotBuy: '', spotSell: ''
+  };
+  let S = JSON.parse(JSON.stringify(DEFAULTS));
+  try { const saved = localStorage.getItem('simbloc-params-v2'); if (saved) S = Object.assign(S, JSON.parse(saved)); } catch (e) {}
+  const save = () => { try { localStorage.setItem('simbloc-params-v2', JSON.stringify(S)); } catch (e) {} };
+
+  const curves = {};
+  let selected = new Set(), frameData = null, opt = null, bloc = null, charts = {};
+
+  // ---------- Import ----------
+  const status = t => { $('#status').textContent = t; };
+  async function readFiles(files) {
+    for (const file of files) {
+      status(`Lecture de ${file.name}…`);
+      await new Promise(r => setTimeout(r, 20));
+      try {
+        let texts = [];
+        if (/\.zip$/i.test(file.name)) {
+          const zip = await JSZip.loadAsync(file);
+          const entries = Object.values(zip.files).filter(f => /\.csv$/i.test(f.name));
+          for (const e of entries) texts.push(await e.async('string'));
+        } else texts.push(await file.text());
+        for (const t of texts) {
+          const res = Core.parseR63(t);
+          for (const prm in res) {
+            if (curves[prm] && curves[prm].step === res[prm].step) res[prm].map.forEach((v, k) => curves[prm].map.set(k, v));
+            else curves[prm] = res[prm];
+            selected.add(prm);
+          }
+        }
+      } catch (err) {
+        status(`${file.name} n’a pas pu être lu : ${err.message} Le fichier doit être une courbe de charge Enedis R63 (CSV ou ZIP).`);
+        return;
+      }
+    }
+    if (!Object.keys(curves).length) { status('Aucune courbe de puissance active (PA) trouvée dans ces fichiers.'); return; }
+    status('');
+    document.body.classList.add('loaded'); $('#addMore').hidden = false;
+    renderPrms();
+    recompute(true);
+  }
+
+  const drop = $('#drop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => readFiles([...e.dataTransfer.files]));
+  $('#file').addEventListener('change', e => { readFiles([...e.target.files]); e.target.value = ''; });
+  $('#file2').addEventListener('change', e => { readFiles([...e.target.files]); e.target.value = ''; });
+
+  // ---------- Paramètres ----------
+  function renderPrms() {
+    const box = $('#prms');
+    box.innerHTML = '';
+    Object.keys(curves).sort().forEach(prm => {
+      const o = curves[prm];
+      let s = 0; o.map.forEach(v => (s += v));
+      const avg = s / o.map.size / 1000;
+      const id = 'prm-' + prm;
+      const row = document.createElement('label');
+      row.className = 'prm';
+      row.innerHTML = `<input type="checkbox" id="${id}" ${selected.has(prm) ? 'checked' : ''}><span class="prm-id">${prm}</span><span class="prm-kw">${nf(avg, 0)} kW moy.</span>`;
+      row.querySelector('input').addEventListener('change', e => { e.target.checked ? selected.add(prm) : selected.delete(prm); recompute(true); });
+      box.appendChild(row);
+    });
+  }
+
+  function bindParams() {
+    $('#stepMW').value = S.stepMW; $('#peakStart').value = S.peakStart; $('#peakEnd').value = S.peakEnd;
+    document.querySelectorAll('input[name=period]').forEach(r => (r.checked = r.value === S.period));
+    $('#from').value = S.from; $('#to').value = S.to;
+    $('#custom').hidden = S.period !== 'custom';
+    $('#spotBuy').value = S.spotBuy; $('#spotSell').value = S.spotSell;
+    renderScenarioInputs();
+  }
+  // ---------- Strips de prix ----------
+  const pad2 = n => String(n).padStart(2, '0');
+  const MONTHS_CAP = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
+  function stripProducts(sc) {
+    const out = [], y0 = sc.startYear, m0 = sc.startMonth;
+    if (m0 === 1) out.push({ id: 'C' + y0, label: 'Cal ' + y0, y: y0 });
+    else for (let m = m0; m <= 12; m++) out.push({ id: `M${y0}-${pad2(m)}`, label: `${MONTHS_CAP[m - 1]} ${y0}`, y: y0, m });
+    for (let y = y0 + 1; y <= sc.endYear; y++) out.push({ id: 'C' + y, label: 'Cal ' + y, y });
+    return out.map(p => Object.assign(p, productHours(p)));
+  }
+  function productHours(p) {
+    const t0 = Date.UTC(p.y, p.m ? p.m - 1 : 0, 1), t1 = p.m ? Date.UTC(p.y, p.m, 1) : Date.UTC(p.y + 1, 0, 1);
+    let days = 0, wd = 0;
+    for (let t = t0; t < t1; t += 864e5) { days++; const d = new Date(t).getUTCDay(); if (d >= 1 && d <= 5) wd++; }
+    const dst = p.m === 3 ? -1 : p.m === 10 ? 1 : 0;
+    return { hb: days * 24 + dst, hp: wd * (S.peakEnd - S.peakStart), months: p.m ? 1 : 12 };
+  }
+  function stripInfo(sc) {
+    const prods = stripProducts(sc);
+    let sb = 0, hb = 0, sp = 0, hp = 0, missing = 0, months = 0;
+    prods.forEach(p => {
+      const pr = (sc.prices || {})[p.id] || {};
+      if (!isFinite(pr.base) || !isFinite(pr.peak)) missing++;
+      sb += (pr.base || 0) * p.hb; hb += p.hb; sp += (pr.peak || 0) * p.hp; hp += p.hp; months += p.months;
+    });
+    return { prods, base: hb && !missing ? sb / hb : NaN, peak: hp && !missing ? sp / hp : NaN, missing, months };
+  }
+  // Prix moyen et coût du bloc sur la durée du strip, pondérés produit par produit
+  function blocCost(sc, B, P) {
+    let cost = 0, vol = 0, miss = false;
+    stripProducts(sc).forEach(p => {
+      const pr = (sc.prices || {})[p.id] || {};
+      if ((B > 0 && !isFinite(pr.base)) || (P > 0 && !isFinite(pr.peak))) miss = true;
+      cost += (pr.base || 0) * B * p.hb + (pr.peak || 0) * P * p.hp; vol += B * p.hb + P * p.hp;
+    });
+    return { price: vol > 0 && !miss ? cost / vol : NaN, cost: miss ? NaN : cost, vol };
+  }
+  const stripLabel = sc => `${MONTHS_LONG[sc.startMonth - 1]} ${sc.startYear} → décembre ${sc.endYear}`;
+
+  function renderScenarioInputs() {
+    const box = $('#scen');
+    box.innerHTML = '';
+    S.scenarios.forEach((sc, k) => {
+      const d = document.createElement('div');
+      d.className = 'scen';
+      const yearOpts = (sel, from) => { let s = ''; for (let y = from; y <= from + 10; y++) s += `<option ${y === sel ? 'selected' : ''}>${y}</option>`; return s; };
+      const now = new Date().getFullYear();
+      d.innerHTML = `<input class="scen-name" aria-label="Nom du scénario" value="${sc.name.replace(/"/g, '&quot;')}">
+        <div class="scen-dates">
+          <label><span>Début</span><select data-k="startMonth">${MONTHS_LONG.map((m, i) => `<option value="${i + 1}" ${i + 1 === sc.startMonth ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+          <label><span>&nbsp;</span><select data-k="startYear">${yearOpts(sc.startYear, now - 1)}</select></label>
+          <label><span>Fin (Cal)</span><select data-k="endYear">${yearOpts(sc.endYear, now - 1)}</select></label>
+        </div>
+        <table class="strip"><thead><tr><th>Produit</th><th>Base</th><th>Peak</th></tr></thead><tbody></tbody></table>
+        <p class="strip-avg"></p>
+        <button class="ghost small">Retirer ce scénario</button>`;
+      const tb = d.querySelector('tbody'), avg = d.querySelector('.strip-avg');
+      const refreshAvg = () => {
+        const info = stripInfo(sc);
+        avg.textContent = info.missing ? `${info.missing} prix manquant${info.missing > 1 ? 's' : ''} : la moyenne n’est pas fiable.` : `Moyenne sur ${info.months} mois : Base ${nf(info.base, 2)}, Peak ${nf(info.peak, 2)} €/MWh.`;
+        avg.classList.toggle('warn', !!info.missing);
+      };
+      const drawRows = () => {
+        sc.prices = sc.prices || {};
+        tb.innerHTML = '';
+        stripProducts(sc).forEach(p => {
+          const pr = sc.prices[p.id] || (sc.prices[p.id] = {});
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<th>${p.label}</th><td><input type="number" step="0.01" data-f="base" aria-label="Prix Base ${p.label}" value="${isFinite(pr.base) ? pr.base : ''}"></td><td><input type="number" step="0.01" data-f="peak" aria-label="Prix Peak ${p.label}" value="${isFinite(pr.peak) ? pr.peak : ''}"></td>`;
+          tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', e => { const v = parseFloat(e.target.value); pr[e.target.dataset.f] = isFinite(v) ? v : undefined; save(); refreshAvg(); renderOutputs(); }));
+          tb.appendChild(tr);
+        });
+        refreshAvg();
+      };
+      d.querySelector('.scen-name').addEventListener('input', e => { sc.name = e.target.value; save(); renderOutputs(); });
+      d.querySelectorAll('select').forEach(sel => sel.addEventListener('change', e => {
+        sc[e.target.dataset.k] = +e.target.value;
+        if (sc.endYear < sc.startYear) { sc.endYear = sc.startYear; d.querySelector('[data-k=endYear]').value = sc.endYear; }
+        save(); drawRows(); renderOutputs();
+      }));
+      d.querySelector('button').addEventListener('click', () => { S.scenarios.splice(k, 1); save(); renderScenarioInputs(); renderOutputs(); });
+      drawRows();
+      box.appendChild(d);
+    });
+  }
+  $('#addScen').addEventListener('click', () => { { const y = new Date().getFullYear(); S.scenarios.push({ name: 'Nouveau scénario', startMonth: 1, startYear: y + 1, endYear: y + 1, prices: {} }); } save(); renderScenarioInputs(); renderOutputs(); });
+  ['stepMW', 'peakStart', 'peakEnd'].forEach(id => $('#' + id).addEventListener('change', e => { const v = parseFloat(e.target.value); if (v > 0 || (id !== 'stepMW' && v >= 0)) { S[id] = v; save(); if (id !== 'stepMW') renderScenarioInputs(); recompute(true); } }));
+  document.querySelectorAll('input[name=period]').forEach(r => r.addEventListener('change', e => { S.period = e.target.value; $('#custom').hidden = S.period !== 'custom'; save(); recompute(true); }));
+  ['from', 'to'].forEach(id => $('#' + id).addEventListener('change', e => { S[id] = e.target.value; save(); if (S.period === 'custom') recompute(true); }));
+  ['spotBuy', 'spotSell'].forEach(id => $('#' + id).addEventListener('input', e => { S[id] = e.target.value; save(); renderOutputs(); }));
+  $('#reset').addEventListener('click', () => { S = JSON.parse(JSON.stringify(DEFAULTS)); save(); bindParams(); recompute(true); });
+  $('#bStep').addEventListener('change', e => setBloc(parseFloat(e.target.value), bloc.P));
+  $('#pStep').addEventListener('change', e => setBloc(bloc.B, parseFloat(e.target.value)));
+  $('#toOpt').addEventListener('click', () => setBloc(opt.grid[0].B, opt.grid[0].P));
+
+  // ---------- Calcul ----------
+  function recompute(resetBloc) {
+    const prms = [...selected].filter(p => curves[p]);
+    if (!prms.length) { $('#main').classList.add('empty-sel'); return; }
+    $('#main').classList.remove('empty-sel');
+    const series = Core.aggregate(curves, prms);
+    frameData = Core.frame(series, S);
+    frameData.prms = prms; frameData.dropped = series.dropped;
+    if (frameData.n < 24) { status('La période choisie ne contient pas assez de données.'); return; }
+    opt = Core.optimise(frameData, S.stepMW);
+    if (resetBloc || !bloc) bloc = { B: opt.grid[0].B, P: opt.grid[0].P };
+    setBloc(bloc.B, bloc.P);
+  }
+  function setBloc(B, P) {
+    const st = S.stepMW;
+    B = Math.max(0, Math.round(B / st) * st); P = Math.max(0, Math.round(P / st) * st);
+    bloc = { B, P, r: Core.evaluate(frameData, B, P, S) };
+    $('#bStep').value = +B.toFixed(4); $('#pStep').value = +P.toFixed(4);
+    $('#bStep').step = st; $('#pStep').step = st;
+    renderOutputs();
+  }
+  const sseIdx = (B, P) => { const g = opt.grid.find(x => Math.abs(x.B - B) < 1e-9 && Math.abs(x.P - P) < 1e-9); return g ? g.idx : NaN; };
+
+  // ---------- Rendu ----------
+  function renderOutputs() {
+    if (!bloc || !frameData) return;
+    const F = frameData, r = bloc.r, A = 8760 / F.hours, { B, P } = bloc, best = opt.grid[0];
+    const isBest = Math.abs(best.B - B) < 1e-9 && Math.abs(best.P - P) < 1e-9;
+
+    // Hero
+    $('#heroB').textContent = nf(B, 2);
+    $('#heroP').textContent = nf(P, 2);
+    $('#heroTag').textContent = isBest ? 'Bloc optimal sur la période' : `Bloc testé (indice ${nf(sseIdx(B, P), 2)}, l’optimum est ${nf(best.B, 2)} + ${nf(best.P, 2)})`;
+    $('#heroSub').textContent = (isBest && B + P === 0 ? `La consommation est trop faible pour porter un bloc de ${nf(S.stepMW, 2)} MW : tout passe par le spot. ` : '') + `Sans contrainte de pas, l’optimum serait ${nf(opt.cont.B * 1000, 0)} kW en Base et ${nf(opt.cont.P * 1000, 0)} kW en Peak. En heures Peak, le bloc fournit ${nf((B + P) * 1000, 0)} kW, ${nf(B * 1000, 0)} kW le reste du temps.`;
+    $('#scope').textContent = `${F.prms.length > 1 ? F.prms.length + ' PRM agrégés' : 'PRM ' + F.prms[0]}, du ${fd(F.from)} au ${fd(F.to)}, pas de ${F.step} min${F.dropped ? `, ${nf(F.dropped)} pas ignorés faute de données communes` : ''}.`;
+
+    // KPI
+    const kpis = [
+      ['Consommation', nf(r.conso * A, 0) + ' MWh/an', `${nf(opt.mean * 1000, 0)} kW en moyenne, pointe à ${nf(opt.mx * 1000, 0)} kW`],
+      ['Achat au spot', pct(r.ach / r.conso), `${nf(r.ach * A, 0)} MWh/an, sur ${nf(r.hAch * A, 0)} h/an`],
+      ['Surplus revendu', nf(r.inj * A, 0) + ' MWh/an', `${pct(r.bloc ? r.inj / r.bloc : 0)} du bloc, sur ${nf(r.hInj * A, 0)} h/an`],
+      ['Position spot nette', pct((r.ach - r.inj) / r.conso), r.ach >= r.inj ? `acheteur de ${nf((r.ach - r.inj) * A, 0)} MWh/an` : `vendeur de ${nf((r.inj - r.ach) * A, 0)} MWh/an`]
+    ];
+    $('#kpis').innerHTML = kpis.map(k => `<div class="kpi"><div class="kpi-l">${k[0]}</div><div class="kpi-v">${k[1]}</div><div class="kpi-s">${k[2]}</div></div>`).join('');
+
+    // Candidats
+    const top = opt.grid.slice(0, 6);
+    if (!top.some(g => Math.abs(g.B - B) < 1e-9 && Math.abs(g.P - P) < 1e-9)) top.push(opt.grid.find(g => Math.abs(g.B - B) < 1e-9 && Math.abs(g.P - P) < 1e-9) || { B, P, idx: NaN });
+    $('#cands').innerHTML = `<thead><tr><th>Base</th><th>Peak</th><th>Indice d’écart</th><th>Achat spot</th><th>Surplus</th><th>Part achetée au spot</th></tr></thead><tbody>` +
+      top.map(g => {
+        const e = Core.evaluate(F, g.B, g.P, S), sel = Math.abs(g.B - B) < 1e-9 && Math.abs(g.P - P) < 1e-9;
+        return `<tr class="${sel ? 'sel' : ''}" data-b="${g.B}" data-p="${g.P}" tabindex="0"><td>${mw(g.B)}</td><td>${mw(g.P)}</td><td>${nf(g.idx, 2)}</td><td>${nf(e.ach * A, 0)} MWh/an</td><td>${nf(e.inj * A, 0)} MWh/an</td><td>${pct(e.ach / e.conso)}</td></tr>`;
+      }).join('') + '</tbody>';
+    $('#cands').querySelectorAll('tbody tr').forEach(tr => {
+      const go = () => setBloc(+tr.dataset.b, +tr.dataset.p);
+      tr.addEventListener('click', go);
+      tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    });
+
+    // Heures exposées
+    $('#hours').innerHTML = `<tbody>
+      <tr><th>Heures en achat spot</th><td>${nf(r.hAch * A, 0)} h/an (${pct(r.hAch / r.hoursAll, 0)})</td></tr>
+      <tr><th>dont heures Peak</th><td>${nf(r.hAchPk * A, 0)} h sur ${nf(r.hoursPk * A, 0)}</td></tr>
+      <tr><th>dont heures hors Peak</th><td>${nf(r.hAchOff * A, 0)} h sur ${nf((r.hoursAll - r.hoursPk) * A, 0)}</td></tr>
+      <tr><th>Heures en surplus</th><td>${nf(r.hInj * A, 0)} h/an (${pct(r.hInj / r.hoursAll, 0)})</td></tr>
+      <tr><th>Achat spot moyen quand il y a achat</th><td>${nf(r.hAch ? r.ach / r.hAch * 1000 : 0, 0)} kW</td></tr>
+      <tr><th>Achat spot maximal</th><td>${nf(r.maxAch * 1000, 0)} kW</td></tr>
+      <tr><th>Achat sur les 3 h avant la fenêtre Peak</th><td>${nf(r.zones.avantPeak * A, 0)} MWh/an (${pct(r.ach ? r.zones.avantPeak / r.ach : 0, 0)} des achats)</td></tr>
+    </tbody>`;
+
+    // Zones de surplus
+    const months = Object.entries(r.months).sort((a, b) => b[1].inj - a[1].inj);
+    const topM = months[0];
+    $('#zones').innerHTML = `<thead><tr><th>Zone</th><th>Surplus</th><th>Lecture prix</th></tr></thead><tbody>
+      <tr><td>3 dernières heures Peak en semaine (${S.peakEnd - 3} h – ${S.peakEnd} h)</td><td>${nf(r.zones.finPeak * A, 1)} MWh/an</td><td>Plutôt favorable en hiver, à la pointe du soir</td></tr>
+      <tr><td>dont octobre à mars</td><td>${nf(r.zones.finPeakHiver * A, 1)} MWh/an</td><td>Spot généralement haut</td></tr>
+      <tr><td>Avril à septembre, 10 h – 17 h</td><td>${nf(r.zones.solaire * A, 1)} MWh/an (${nf(r.zones.hSolaire * A, 0)} h)</td><td>Risque de prix bas ou négatifs</td></tr>
+      <tr><td>Jours fériés</td><td>${nf(r.dtype[2].inj * A, 1)} MWh/an (${nf(r.dtype[2].hInj * A, 0)} h)</td><td>Le produit Peak inclut les fériés</td></tr>
+      <tr><td>Week-ends</td><td>${nf(r.dtype[1].inj * A, 1)} MWh/an (${nf(r.dtype[1].hInj * A, 0)} h)</td><td>Seule la Base joue</td></tr>
+      ${topM ? `<tr><td>Mois le plus excédentaire (${MONTHS_LONG[topM[1].m - 1]} ${topM[0].slice(0, 4)})</td><td>${nf(topM[1].inj, 1)} MWh</td><td>Baisse d’activité à vérifier avec le client</td></tr>` : ''}
+    </tbody>`;
+
+    // Scénarios
+    const pa = parseFloat(S.spotBuy), pr = parseFloat(S.spotSell), full = isFinite(pa) && isFinite(pr);
+    $('#costs').innerHTML = `<thead><tr><th>Scénario</th><th>Période</th><th>Base / Peak moyens</th><th>Prix moyen du bloc</th><th>Volume du bloc</th><th>Coût du bloc</th>${full ? '<th>Coût complet bloc + spot</th>' : ''}</tr></thead><tbody>` +
+      S.scenarios.map(sc => {
+        const info = stripInfo(sc), c = blocCost(sc, B, P);
+        const tot = full ? (c.price * r.bloc * A + r.ach * A * pa - r.inj * A * pr) / (r.conso * A) : NaN;
+        const flag = info.missing ? ' <span class="warn">(prix manquants)</span>' : '';
+        return `<tr><td>${sc.name}${flag}</td><td>${stripLabel(sc)} (${info.months} mois)</td><td>${nf(info.base, 2)} / ${nf(info.peak, 2)} €/MWh</td><td>${nf(c.price, 2)} €/MWh</td><td>${nf(c.vol, 0)} MWh</td><td>${nf(c.cost, 0)} €</td>${full ? `<td>${nf(tot, 2)} €/MWh consommé</td>` : ''}</tr>`;
+      }).join('') + '</tbody>';
+
+    renderCharts();
+    renderExplorer();
+    renderNote();
+    renderContract();
+  }
+
+  // ---------- Graphiques ----------
+  const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function baseOpts() {
+    const grid = cssv('--line'), txt = cssv('--muted');
+    return {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: cssv('--ink'), boxWidth: 12, boxHeight: 12, font: { size: 12 } } }, tooltip: { backgroundColor: cssv('--surface'), titleColor: cssv('--ink'), bodyColor: cssv('--ink'), borderColor: grid, borderWidth: 1 } },
+      scales: { x: { grid: { display: false }, ticks: { color: txt, maxRotation: 0, autoSkipPadding: 8 } }, y: { grid: { color: grid }, ticks: { color: txt }, border: { display: false } } }
+    };
+  }
+  function mk(id, cfg) { if (charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
+  function renderCharts() {
+    if (typeof Chart === 'undefined') return;
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    const F = frameData, r = bloc.r, A = 8760 / F.hours, { B, P } = bloc;
+    const hours = [...Array(24).keys()];
+    const lab = hours.map(h => h + ' h');
+    const inPk = h => h >= S.peakStart && h < S.peakEnd;
+    const cBase = cssv('--base'), cPeak = cssv('--peak'), cAch = cssv('--buy'), cInj = cssv('--sell'), ink = cssv('--ink'), muted = cssv('--muted');
+
+    // 1. Profil
+    let o = baseOpts();
+    o.scales.x.stacked = true; o.scales.y.stacked = true; o.scales.y.title = { display: true, text: 'kW', color: muted };
+    o.plugins.tooltip.callbacks = { label: c => `${c.dataset.label} : ${nf(c.parsed.y, 0)} kW` };
+    mk('chProfile', { type: 'bar', options: o, data: { labels: lab, datasets: [
+      { type: 'line', label: 'Conso jours ouvrés', data: hours.map(h => r.wdProfile[h] * 1000), borderColor: ink, backgroundColor: ink, borderWidth: 2, pointRadius: 0, tension: 0.25, stack: 'c1', order: 0 },
+      { type: 'line', label: 'Conso week-end et fériés', data: hours.map(h => r.weProfile[h] * 1000), borderColor: muted, backgroundColor: muted, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, tension: 0.25, stack: 'c2', order: 0 },
+      { label: 'Bloc Base', data: hours.map(() => B * 1000), backgroundColor: cBase + '55', borderColor: cBase, borderWidth: { top: 1 }, stack: 'bloc', barPercentage: 1, categoryPercentage: 1, order: 1 },
+      { label: 'Bloc Peak (jours ouvrés)', data: hours.map(h => (inPk(h) ? P * 1000 : 0)), backgroundColor: cPeak + '66', borderColor: cPeak, borderWidth: { top: 1 }, stack: 'bloc', barPercentage: 1, categoryPercentage: 1, order: 1 }
+    ] } });
+
+    // 2. Par heure
+    o = baseOpts();
+    o.scales.x.stacked = true; o.scales.y.stacked = true; o.scales.y.title = { display: true, text: 'MWh/an', color: muted };
+    o.scales.y.ticks.callback = v => nf(Math.abs(v), 0);
+    o.plugins.tooltip.callbacks = { label: c => `${c.dataset.label} : ${nf(Math.abs(c.parsed.y), 1)} MWh/an` };
+    mk('chHours', { type: 'bar', options: o, data: { labels: lab, datasets: [
+      { label: 'Achat au spot', data: hours.map(h => r.byHourAch[h] * A), backgroundColor: cAch, stack: 's' },
+      { label: 'Surplus revendu', data: hours.map(h => -r.byHourInj[h] * A), backgroundColor: cInj, stack: 's' }
+    ] } });
+
+    // 3. Par mois
+    const mkeys = Object.keys(r.months).sort();
+    o = baseOpts();
+    o.scales.x.stacked = true; o.scales.y.stacked = true; o.scales.y.title = { display: true, text: 'MWh', color: muted };
+    o.scales.y.ticks.callback = v => nf(Math.abs(v), 0);
+    o.plugins.tooltip.callbacks = { label: c => `${c.dataset.label} : ${nf(Math.abs(c.parsed.y), 1)} MWh` };
+    mk('chMonths', { type: 'bar', options: o, data: { labels: mkeys.map(k => MONTHS[+k.slice(5, 7) - 1] + ' ' + k.slice(2, 4)), datasets: [
+      { label: 'Achat au spot', data: mkeys.map(k => r.months[k].ach), backgroundColor: cAch, stack: 's' },
+      { label: 'Surplus revendu', data: mkeys.map(k => -r.months[k].inj), backgroundColor: cInj, stack: 's' }
+    ] } });
+
+    // 4. Monotone
+    const sorted = Array.from(F.C).sort((a, b) => b - a), N = sorted.length, K = Math.min(400, N);
+    const pts = [...Array(K).keys()].map(i => { const j = Math.round(i * (N - 1) / (K - 1)); return { x: j / (N - 1) * 100, y: sorted[j] * 1000 }; });
+    o = baseOpts();
+    o.interaction = { mode: 'nearest', intersect: false, axis: 'x' };
+    o.scales.x = { type: 'linear', min: 0, max: 100, grid: { display: false }, ticks: { color: muted, callback: v => v + ' %' }, title: { display: true, text: 'Part du temps', color: muted } };
+    o.scales.y.title = { display: true, text: 'kW', color: muted };
+    o.plugins.tooltip.callbacks = { title: c => `${nf(c[0].parsed.x, 0)} % du temps`, label: c => `${c.dataset.label} : ${nf(c.parsed.y, 0)} kW` };
+    mk('chMono', { type: 'line', options: o, data: { datasets: [
+      { label: 'Consommation triée', data: pts, borderColor: ink, backgroundColor: ink, borderWidth: 2, pointRadius: 0 },
+      { label: 'Niveau Base', data: [{ x: 0, y: B * 1000 }, { x: 100, y: B * 1000 }], borderColor: cBase, borderWidth: 2, borderDash: [6, 4], pointRadius: 0 },
+      { label: 'Niveau Base + Peak', data: [{ x: 0, y: (B + P) * 1000 }, { x: 100, y: (B + P) * 1000 }], borderColor: cPeak, borderWidth: 2, borderDash: [6, 4], pointRadius: 0 }
+    ] } });
+  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => bloc && renderCharts());
+
+  // ---------- Explorateur mois × jour ----------
+  const DAYS = [['1', 'Lundi'], ['2', 'Mardi'], ['3', 'Mercredi'], ['4', 'Jeudi'], ['5', 'Vendredi'], ['6', 'Samedi'], ['0', 'Dimanche'], ['wd', 'Jours ouvrés (lun–ven)'], ['we', 'Week-ends'], ['fer', 'Jours fériés'], ['all', 'Tous les jours'], ['date', 'Une date précise']];
+  const WEEKDAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  function toggleDateMode() { const on = exDay === 'date'; $('#exDateWrap').hidden = !on; $('#exMonth').disabled = on; }
+  const DAY_PLURAL = { '1': 'lundis', '2': 'mardis', '3': 'mercredis', '4': 'jeudis', '5': 'vendredis', '6': 'samedis', '0': 'dimanches', wd: 'jours ouvrés', we: 'jours de week-end', fer: 'jours fériés', all: 'jours' };
+  let exMonth = null, exDay = '1', exDate = '';
+  function fillExplorerSelects() {
+    const r = bloc.r, keys = Object.keys(r.months).sort();
+    if (!exMonth || (exMonth !== 'all' && !keys.includes(exMonth))) exMonth = keys[keys.length - 1];
+    $('#exMonth').innerHTML = `<option value="all">Toute la période</option>` + keys.map(k => `<option value="${k}" ${k === exMonth ? 'selected' : ''}>${MONTHS_LONG[+k.slice(5, 7) - 1]} ${k.slice(0, 4)}</option>`).join('');
+    $('#exMonth').value = exMonth;
+    $('#exDay').innerHTML = DAYS.map(d => `<option value="${d[0]}" ${d[0] === exDay ? 'selected' : ''}>${d[1]}</option>`).join('');
+    const dIn = $('#exDate');
+    dIn.min = frameData.from; dIn.max = frameData.to;
+    if (!exDate || exDate < frameData.from || exDate > frameData.to) exDate = frameData.to;
+    dIn.value = exDate;
+    toggleDateMode();
+  }
+  $('#exMonth').addEventListener('change', e => { exMonth = e.target.value; renderExplorer(true); });
+  $('#exDay').addEventListener('change', e => { exDay = e.target.value; toggleDateMode(); renderExplorer(true); });
+  $('#exDate').addEventListener('change', e => { if (e.target.value) { exDate = e.target.value; renderExplorer(true); } });
+  function renderExplorer(keepSelects) {
+    if (!keepSelects) fillExplorerSelects();
+    const F = frameData, { B, P } = bloc, step = F.step, ns = Math.round(1440 / step), h = step / 60;
+    const sc = new Float64Array(ns), sb = new Float64Array(ns), sa = new Float64Array(ns), si = new Float64Array(ns), cnt = new Float64Array(ns);
+    const days = new Set();
+    const exDateN = exDate ? Math.round(Date.UTC(+exDate.slice(0, 4), +exDate.slice(5, 7) - 1, +exDate.slice(8, 10)) / 864e5) : -1;
+    let eA = 0, eI = 0, hA = 0, hI = 0, eC = 0, eB = 0;
+    const okDay = i => {
+      const w = F.wdj[i], t = F.dt[i];
+      if (exDay === 'all') return true;
+      if (exDay === 'date') return F.dayN[i] === exDateN;
+      if (exDay === 'wd') return w >= 1 && w <= 5;
+      if (exDay === 'we') return w === 0 || w === 6;
+      if (exDay === 'fer') return t === 2;
+      return String(w) === exDay;
+    };
+    for (let i = 0; i < F.n; i++) {
+      if (exDay !== 'date' && exMonth !== 'all' && F.monthKey[i] !== exMonth) continue;
+      if (!okDay(i)) continue;
+      const s = F.sl[i], v = F.C[i], b = B + P * F.pk[i], d = v - b;
+      sc[s] += v; sb[s] += b; cnt[s]++; days.add(F.dayN[i]); eC += v * h; eB += b * h;
+      if (d > 0) { sa[s] += d; eA += d * h; hA += h; } else if (d < 0) { si[s] -= d; eI -= d * h; hI += h; }
+    }
+    const nd = days.size;
+    const per = (arr, s) => (cnt[s] ? arr[s] / cnt[s] * 1000 : null);
+    const lab = [...Array(ns).keys()].map(s => { const m = s * step; return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`; });
+    const isDate = exDay === 'date';
+    const dateLabel = () => { const t = new Date(exDateN * 864e5), dd = t.getUTCDate(); return `${WEEKDAYS[t.getUTCDay()]} ${dd === 1 ? '1er' : dd} ${MONTHS_LONG[t.getUTCMonth()]} ${t.getUTCFullYear()}`; };
+    const label = isDate ? dateLabel() : `${nd} ${nd > 1 ? DAY_PLURAL[exDay] : DAY_PLURAL[exDay].replace(/s$/, '').replace('jours de week-end', 'jour de week-end')}${exMonth === 'all' ? ' sur toute la période' : ` en ${MONTHS_LONG[+exMonth.slice(5, 7) - 1]} ${exMonth.slice(0, 4)}`}`;
+    if (!nd) {
+      $('#exSum').textContent = isDate ? 'Pas de données pour cette date dans la période analysée.' : 'Aucun jour ne correspond à cette sélection.';
+      if (charts.chEx) { charts.chEx.destroy(); delete charts.chEx; }
+      $('#exKpis').innerHTML = '';
+      return;
+    }
+    $('#exSum').innerHTML = isDate ? `<strong>${label}.</strong> Soutirage au spot : ${nf(eA * 1000, 0)} kWh sur ${nf(hA, 1)} h. Injection (surplus revendu) : ${nf(eI * 1000, 0)} kWh sur ${nf(hI, 1)} h.` : `<strong>${label}.</strong> Soutirage au spot : ${nf(eA, 1)} MWh, soit ${nf(eA / nd * 1000, 0)} kWh par jour, sur ${nf(hA / nd, 1)} h par jour en moyenne. Injection (surplus revendu) : ${nf(eI, 1)} MWh, soit ${nf(eI / nd * 1000, 0)} kWh par jour, sur ${nf(hI / nd, 1)} h par jour.`;
+    const en = v => (isDate ? `${nf(v * 1000, 0)} kWh` : `${nf(v, 1)} MWh`), R = bloc.r;
+    $('#exKpis').innerHTML = `<div class="kpi buy"><div class="kpi-l">Taux de couverture spot</div><div class="kpi-v">${pct(eC ? eA / eC : 0)}</div><div class="kpi-s">${en(eA)} achetés au spot sur ${en(eC)} consommés. Moyenne de la période : ${pct(R.conso ? R.ach / R.conso : 0)}.</div></div>` +
+      `<div class="kpi sell"><div class="kpi-l">Taux d’injection du bloc</div><div class="kpi-v">${eB ? pct(eI / eB) : '–'}</div><div class="kpi-s">${en(eI)} revendus sur ${en(eB)} de bloc. Moyenne de la période : ${pct(R.bloc ? R.inj / R.bloc : 0)}.</div></div>`;
+    if (typeof Chart === 'undefined') return;
+    const ink = cssv('--ink'), muted = cssv('--muted'), cBase = cssv('--base'), cAch = cssv('--buy'), cInj = cssv('--sell');
+    const o = baseOpts();
+    o.scales.y.title = { display: true, text: isDate ? 'kW' : 'kW (moyenne des jours sélectionnés)', color: muted };
+    const every = Math.max(1, Math.round(120 / step));
+    o.scales.x.ticks.autoSkip = false;
+    o.scales.x.ticks.callback = (v, i) => (i % every === 0 ? lab[i].replace(':00', ' h') : '');
+    o.plugins.tooltip.callbacks = { label: c => `${c.dataset.label} : ${nf(Math.abs(c.parsed.y), 0)} kW` };
+    mk('chEx', { type: 'line', options: o, data: { labels: lab, datasets: [
+      { label: 'Consommation', data: lab.map((_, s) => per(sc, s)), borderColor: ink, backgroundColor: ink, borderWidth: 2, pointRadius: 0, tension: 0.2, order: 0 },
+      { label: 'Bloc', data: lab.map((_, s) => per(sb, s)), borderColor: cBase, backgroundColor: cBase, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, stepped: true, order: 1 },
+      { label: 'Soutirage au spot', data: lab.map((_, s) => per(sa, s)), borderColor: cAch, backgroundColor: cAch + '59', borderWidth: 1, pointRadius: 0, fill: 'origin', tension: 0.2, order: 2 },
+      { label: 'Injection (surplus revendu)', data: lab.map((_, s) => { const v = per(si, s); return v === null ? null : -v; }), borderColor: cInj, backgroundColor: cInj + '59', borderWidth: 1, pointRadius: 0, fill: 'origin', tension: 0.2, order: 2 }
+    ] } });
+  }
+
+  // ---------- Conditions particulières ----------
+  const C_DEF = { clientName: '', clientSiren: '', clientAddress: '', clientSigner: '', segment: 'C4', petitPro: false, scen: 0, startDate: '',
+    feeBuy: '', feeSell: '', feeMonthly: '', negPrice: 'client', validityH: '', capacity: 'reel', capaPrice: '', ceePrice: '', goOpt: false, goPrice: '',
+    deposit: '', exitFee: '' };
+  S.contract = Object.assign({}, C_DEF, S.contract || {});
+  const K = S.contract;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const fill = (v, unit = '') => (v === '' || v === null || v === undefined || (typeof v === 'number' && !isFinite(v)) ? '<mark>[à compléter]</mark>' : esc(v) + unit);
+  const num = (v, d = 2, unit = '') => (v === '' || !isFinite(parseFloat(v)) ? '<mark>[à compléter]</mark>' : nf(parseFloat(v), d) + unit);
+  const fdate = s => (s ? `${+s.slice(8, 10) === 1 ? '1er' : +s.slice(8, 10)} ${MONTHS_LONG[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}` : '<mark>[à compléter]</mark>');
+
+  function bindContract() {
+    document.querySelectorAll('#cform [data-c]').forEach(el => {
+      const k = el.dataset.c;
+      if (el.type === 'checkbox') el.checked = !!K[k]; else el.value = K[k];
+      el.addEventListener(el.tagName === 'SELECT' || el.type === 'checkbox' ? 'change' : 'input', () => {
+        K[k] = el.type === 'checkbox' ? el.checked : (k === 'scen' ? +el.value : el.value);
+        save(); renderContract();
+      });
+    });
+  }
+  function renderContract() {
+    if (!bloc || !frameData) return;
+    const sel = $('#cScen');
+    sel.innerHTML = S.scenarios.map((s, i) => `<option value="${i}" ${i === K.scen ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+    if (K.scen >= S.scenarios.length) K.scen = 0;
+    const sc = S.scenarios[K.scen];
+    const F = frameData, r = bloc.r, { B, P } = bloc, A = 8760 / F.hours;
+    if (!sc) { $('#contract').innerHTML = '<p>Ajoutez un scénario de prix pour générer les conditions particulières.</p>'; return; }
+    const prods = stripProducts(sc), cost = blocCost(sc, B, P);
+    const start = K.startDate || `${sc.startYear}-${pad2(sc.startMonth)}-01`;
+    const spotShare = r.conso ? r.ach / r.conso : 0;
+    const dynamic = spotShare >= 0.5;
+    const small = K.segment === 'C5' || K.petitPro;
+    const peakTxt = `du lundi au vendredi, de ${S.peakStart} h à ${S.peakEnd} h, jours fériés inclus`;
+    const rows = prods.map(p => {
+      const pr = (sc.prices || {})[p.id] || {}, vol = B * p.hb + P * p.hp;
+      const amt = (isFinite(pr.base) ? pr.base : NaN) * B * p.hb + (isFinite(pr.peak) ? pr.peak : NaN) * P * p.hp;
+      return `<tr><td>${p.label}</td><td>${nf(B, 2)} MW</td><td>${isFinite(pr.base) ? nf(pr.base, 2) : '<mark>–</mark>'}</td><td>${nf(P, 2)} MW</td><td>${isFinite(pr.peak) ? nf(pr.peak, 2) : '<mark>–</mark>'}</td><td>${nf(vol, 1)}</td><td>${isFinite(amt) ? nf(amt, 0) : '<mark>–</mark>'}</td></tr>`;
+    }).join('');
+    let n = 0;
+    const art = (title, body) => `<h4>Article ${++n}. ${title}</h4>${body}`;
+    const html = [];
+    html.push(`<p class="c-warn">Projet généré automatiquement à partir de la simulation. Il doit être relu et validé par un juriste, et mis en cohérence avec les Conditions générales de vente Sobry applicables, avant toute signature.</p>`);
+    html.push(`<h3>Conditions particulières de vente : offre Bloc + Spot</h3>`);
+    html.push(art('Parties', `<p>Entre <strong>YENKA ENERGIE SAS</strong>, exerçant sous la marque Sobry, SIREN 838 812 139, dont le siège est situé 6 rue Cambacérès, 75008 Paris, ci-après « le Fournisseur »,</p><p>et <strong>${fill(K.clientName)}</strong>, SIREN ${fill(K.clientSiren)}, dont le siège est situé ${fill(K.clientAddress)}, représentée par ${fill(K.clientSigner)}, ci-après « le Client ».</p>`));
+    html.push(art('Objet et documents contractuels', `<p>Les présentes Conditions particulières définissent les conditions de fourniture d’électricité selon une structure Bloc + Spot pour les points de livraison désignés à l’article 3. Le contrat est constitué, par ordre de priorité décroissant, des présentes Conditions particulières et de leurs annexes, puis des Conditions générales de vente Sobry ${K.segment === 'C5' ? 'C5 Pro' : 'C4 Pro'} en vigueur à la date de signature. En cas de contradiction, les présentes Conditions particulières prévalent.</p>`));
+    html.push(art('Périmètre de fourniture', `<p>Le contrat porte sur ${F.prms.length > 1 ? 'les points de livraison suivants' : 'le point de livraison suivant'}, raccordé${F.prms.length > 1 ? 's' : ''} au réseau public de distribution géré par Enedis, segment ${K.segment} :</p><ul>${F.prms.map(p => `<li>PRM ${p}</li>`).join('')}</ul>${F.prms.length > 1 ? '<p>Les consommations de ces points de livraison sont agrégées pas par pas pour le calcul de l’énergie soutirée au spot et du surplus revendu. Le bloc est unique pour l’ensemble du périmètre.</p>' : ''}<p>Le Client autorise le Fournisseur à demander à Enedis la collecte et la transmission de la courbe de charge de chaque point de livraison, à son pas de mesure, pendant toute la durée du contrat. Cette autorisation est une condition de l’offre : sans courbe de charge, la facturation Bloc + Spot ne peut pas être établie.</p>`));
+    html.push(art('Durée', `<p>Le contrat prend effet à sa signature. La fourniture débute le ${fdate(start)}, sous réserve de l’aboutissement du changement de fournisseur auprès d’Enedis, et prend fin le 31 décembre ${sc.endYear}, soit ${stripInfo(sc).months} mois. Le contrat est conclu pour une durée ferme, sans tacite reconduction.</p>`));
+    html.push(art('Bloc d’énergie à prix fixe', `<p>Le Fournisseur livre au Client, pour chaque produit ci-dessous, une puissance constante appelée bloc, composée :</p><ul><li>d’un produit <strong>Base</strong> de ${mw(B)}, livré à toutes les heures ;</li><li>d’un produit <strong>Peak</strong> de ${mw(P)}, livré ${peakTxt}, qui s’ajoute au produit Base.</li></ul><p>Les prix ci-dessous sont fermes et non révisables pour toute la durée du contrat. Ils sont exprimés hors acheminement, hors taxes et contributions, et hors composantes listées à l’article 8.</p><div class="tablewrap"><table class="c-table"><thead><tr><th>Produit</th><th>Base</th><th>Prix Base (€/MWh)</th><th>Peak</th><th>Prix Peak (€/MWh)</th><th>Volume (MWh)</th><th>Montant (€)</th></tr></thead><tbody>${rows}</tbody></table></div><p>Volume total du bloc : ${nf(cost.vol, 1)} MWh, pour un prix moyen de ${isFinite(cost.price) ? nf(cost.price, 2) + ' €/MWh' : '<mark>[prix manquants]</mark>'} et un montant de ${isFinite(cost.cost) ? nf(cost.cost, 0) + ' €' : '<mark>[prix manquants]</mark>'} HT.</p><p>Le bloc est dû en totalité, que l’énergie correspondante soit consommée ou non. L’énergie non consommée est revendue dans les conditions de l’article 7.</p>`));
+    html.push(art('Soutirage complémentaire au prix spot', `<p>Pour chaque pas de règlement, l’énergie consommée par le périmètre au-delà du bloc est facturée au prix du marché EPEX Spot Day-Ahead pour la zone France correspondant à ce pas, majoré de frais de gestion de ${num(K.feeBuy, 2, ' €/MWh')}. Le pas de règlement est le quart d’heure, maille de ce marché depuis le 1er octobre 2025. Lorsque la courbe de charge est disponible à un pas plus fin, elle est agrégée au quart d’heure.</p><p>Si le prix spot d’un pas est négatif, l’énergie soutirée au-delà du bloc sur ce pas est facturée à ce prix négatif majoré des frais de gestion.</p>`));
+    const negTxt = K.negPrice === 'floor0'
+      ? 'Lorsque le prix spot d’un pas est négatif, le surplus de ce pas n’est pas valorisé : il n’est ni crédité ni facturé au Client.'
+      : 'Lorsque le prix spot d’un pas est négatif, la revente du surplus de ce pas génère un montant négatif, qui est facturé au Client.';
+    html.push(art('Revente du surplus', `<p>Pour chaque pas de règlement, l’énergie du bloc non consommée par le périmètre constitue un surplus. Le Fournisseur la revend sur le marché EPEX Spot Day-Ahead France et en crédite la valeur au Client, au prix du pas, diminué de frais de ${num(K.feeSell, 2, ' €/MWh')}.</p><p>${negTxt}</p>`));
+    const capa = K.capacity === 'forfait'
+      ? `refacturée au forfait de ${num(K.capaPrice, 2, ' €/MWh')} consommé`
+      : 'refacturée au réel, sur la base de la quote-part du Client calculée à partir de sa puissance de référence (Pref), avec régularisation après publication de la Pref définitive';
+    html.push(art('Autres composantes du prix', `<ul><li><strong>Acheminement</strong> : tarif d’utilisation des réseaux publics d’électricité (TURPE) en vigueur, fixé par la CRE et refacturé à l’identique, y compris ses évolutions en cours de contrat.</li><li><strong>Capacité</strong> : contribution au mécanisme de capacité centralisé opéré par RTE depuis le 1er avril 2026, ${capa}.</li><li><strong>Certificats d’économies d’énergie</strong> : ${num(K.ceePrice, 2, ' €/MWh')} consommé, révisable en cas d’évolution réglementaire de l’obligation.</li><li><strong>Garanties d’origine</strong> : ${K.goOpt ? `option souscrite, ${num(K.goPrice, 2, ' €/MWh')} consommé` : 'option non souscrite'}.</li><li><strong>Frais de gestion</strong> : ${num(K.feeMonthly, 2, ' € HT par mois')} pour l’ensemble du périmètre, incluant l’accès aux outils de pilotage Sobry.</li><li><strong>Équilibre</strong> : les coûts d’écarts liés au périmètre du Client sont inclus dans les frais de gestion des articles 6 et 7.</li><li><strong>Taxes et contributions</strong> : accise sur l’électricité, contribution tarifaire d’acheminement et TVA, aux taux en vigueur. Toute création ou modification de taxe s’applique de plein droit.</li></ul>`));
+    html.push(art('Fixation et validité de l’offre', `<p>Les prix du bloc dépendent des cours du marché à terme au moment de leur fixation. Ils sont valables ${num(K.validityH, 0, ' heures')} à compter de l’émission de l’offre. Passé ce délai, le Fournisseur adresse une nouvelle cotation. Les prix sont fixés définitivement à la réception du contrat signé dans ce délai.</p>`));
+    html.push(art('Facturation et paiement', `<p>La facture est mensuelle. Elle distingue le bloc, l’énergie soutirée au spot, le crédit de revente du surplus, et les composantes de l’article 8. Elle est établie à partir des données de comptage publiées par Enedis. En cas de données manquantes, le Fournisseur établit une facture estimée, régularisée dès réception des données réelles. Les modalités et délais de paiement sont ceux des Conditions générales de vente.</p>`));
+    html.push(art('Évolution de la consommation et du périmètre', `<p>Le bloc est ferme pour toute la durée du contrat. Les variations de consommation du Client, à la hausse comme à la baisse, sont absorbées par le soutirage au spot et la revente du surplus, sans pénalité. L’ajout ou le retrait d’un point de livraison, ou la modification du bloc, fait l’objet d’un avenant aux conditions de marché du jour.</p>`));
+    const exitTxt = small
+      ? `<p class="c-flag">Point juridique à valider : pour les petits consommateurs professionnels, l’article L.332-2 du code de l’énergie exclut les frais de résiliation anticipée, sauf pour les contrats à prix fixe et à durée déterminée. La qualification d’un contrat Bloc + Spot, dont une partie seulement est à prix fixe, doit être confirmée avant d’appliquer la clause ci-dessous.</p>`
+      : '';
+    html.push(art('Résiliation anticipée', `${exitTxt}<p>En cas de résiliation à l’initiative du Client avant le terme, ou à ses torts, le Client verse au Fournisseur une indemnité égale au coût de débouclage du bloc restant à livrer. Elle se calcule produit par produit, comme la différence, si elle est positive, entre le prix contractuel et le prix de marché à terme du produit au jour de la résiliation, multipliée par le volume restant. S’y ajoutent des frais de ${num(K.exitFee, 0, ' € HT')}. Si cette différence est négative, aucune somme n’est due par le Fournisseur.</p><p>Les cas de résiliation sans indemnité prévus par la loi et par les Conditions générales de vente, notamment la cessation d’activité ou le déménagement justifiés, demeurent applicables.</p>`));
+    html.push(art('Garanties', `<p>Le Client remet au Fournisseur, à la signature, un dépôt de garantie égal à ${num(K.deposit, 0, ' mois')} de facturation estimée, restitué en fin de contrat sous déduction des sommes restant dues.</p>`));
+    html.push(art('Information sur les risques', `<p>Le Client reconnaît avoir reçu l’étude de dimensionnement figurant en annexe et avoir été informé des risques suivants :</p><ul><li>sur l’historique analysé, ${pct(spotShare)} de sa consommation aurait été achetée au spot et ${pct(r.bloc ? r.inj / r.bloc : 0)} du bloc revendu ; ces proportions varient avec sa consommation réelle ;</li><li>le prix spot est volatil et peut être nettement supérieur au prix du bloc, notamment les matins d’hiver ;</li><li>le surplus est revendu au prix spot, qui peut être bas ou négatif, notamment en milieu de journée au printemps et en été, les week-ends et les jours fériés ;</li><li>le bloc est dû même en cas de baisse d’activité.</li></ul>${dynamic ? `<p class="c-flag">Avec ${pct(spotShare)} de l’énergie indexée sur le spot, l’offre relève de la définition des offres à tarification dynamique retenue par la CRE (au moins 50 % du prix de l’énergie indexé sur le spot, au pas au moins horaire). Le Fournisseur doit alors informer le Client des opportunités, coûts et risques de l’offre et recueillir son consentement exprès (article L.332-7 du code de l’énergie).</p>` : ''}`));
+    html.push(art('Outils de pilotage et données', `<p>Le Fournisseur met à disposition du Client un outil de suivi de sa consommation, de sa position face au bloc et des prix spot. Les données de comptage sont traitées conformément au RGPD, aux seules fins d’exécution du contrat et de conseil en pilotage de la consommation.</p>`));
+    if (small) html.push(art('Droit de rétractation', `<p>Lorsque le contrat est conclu hors établissement, que son objet n’entre pas dans le champ de l’activité principale du Client et que celui-ci emploie au plus cinq salariés, le Client dispose d’un délai de rétractation de 14 jours à compter de la signature (article L.221-3 du code de la consommation). Les prix du bloc ne sont alors fixés qu’à l’expiration de ce délai, sauf demande expresse du Client.</p>`));
+    html.push(`<h4>Annexes</h4><ol><li>Étude de dimensionnement du bloc : période du ${fd(F.from)} au ${fd(F.to)}, indicateurs et graphiques du simulateur.</li><li>Tableau des prix par produit (article 5).</li><li>Autorisation de collecte de la courbe de charge auprès d’Enedis.</li><li>Mandat de prélèvement SEPA.</li></ol>`);
+    html.push(`<h4>Pièces à réunir avant signature</h4><ul><li>Extrait Kbis de moins de 3 mois et pièce d’identité du signataire.</li><li>Autorisation de collecte des données de comptage, signée.</li><li>RIB et mandat SEPA.</li><li>Dernière facture d’électricité, pour vérifier le PRM, la puissance souscrite et la date d’échéance du contrat en cours.</li><li>Pour un petit professionnel : effectif salarié et confirmation du lieu de signature, pour le droit de rétractation.</li></ul>`);
+    $('#contract').innerHTML = html.join('');
+    const checks = [];
+    if (!K.clientName || !K.clientSiren) checks.push('identité du Client');
+    ['feeBuy', 'feeSell', 'feeMonthly', 'validityH', 'ceePrice', 'deposit', 'exitFee'].forEach(k => { if (K[k] === '') checks.push({ feeBuy: 'frais sur soutirage spot', feeSell: 'frais sur revente', feeMonthly: 'frais mensuels', validityH: 'validité de l’offre', ceePrice: 'prix CEE', deposit: 'dépôt de garantie', exitFee: 'frais de résiliation' }[k]); });
+    if (K.capacity === 'forfait' && K.capaPrice === '') checks.push('forfait capacité');
+    if (K.goOpt && K.goPrice === '') checks.push('prix des garanties d’origine');
+    if (!isFinite(cost.price)) checks.push('prix du scénario');
+    $('#cTodo').textContent = checks.length ? `Reste à compléter : ${checks.join(', ')}.` : 'Toutes les variables sont renseignées. Le projet reste à faire valider par un juriste.';
+  }
+  $('#copyContract').addEventListener('click', async () => {
+    const t = $('#contract').innerText;
+    try { await navigator.clipboard.writeText(t); $('#copyContract').textContent = 'Conditions copiées'; }
+    catch (e) { const rg = document.createRange(); rg.selectNodeContents($('#contract')); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); $('#copyContract').textContent = 'Texte sélectionné, copiez-le'; }
+    setTimeout(() => ($('#copyContract').textContent = 'Copier les conditions'), 2500);
+  });
+  bindContract();
+
+  // ---------- Note d’analyse ----------
+  function renderNote() {
+    const F = frameData, r = bloc.r, A = 8760 / F.hours, { B, P } = bloc, best = opt.grid[0];
+    const isBest = Math.abs(best.B - B) < 1e-9 && Math.abs(best.P - P) < 1e-9;
+    const second = opt.grid[1];
+    const ps = [];
+    ps.push(`Périmètre : ${F.prms.length > 1 ? 'PRM ' + F.prms.join(' et ') + ', agrégés' : 'PRM ' + F.prms[0]}. Période analysée : du ${fd(F.from)} au ${fd(F.to)}, au pas de ${F.step} minutes. Produit Peak : lundi à vendredi, ${S.peakStart} h – ${S.peakEnd} h, jours fériés inclus.`);
+    ps.push(`La consommation atteint ${nf(r.conso * A, 0)} MWh/an, soit ${nf(opt.mean * 1000, 0)} kW en moyenne : ${nf(opt.mPk * 1000, 0)} kW en heures Peak et ${nf(opt.mOff * 1000, 0)} kW hors Peak. La pointe est de ${nf(opt.mx * 1000, 0)} kW.` +
+      (F.growth && F.growth.prev > 0 ? ` Sur les 12 derniers mois, elle évolue de ${nf((F.growth.last / F.growth.prev - 1) * 100, 0)} % par rapport aux 12 mois précédents (${nf(F.growth.prev, 0)} → ${nf(F.growth.last, 0)} MWh).` : ''));
+    ps.push(isBest
+      ? `Le bloc optimal au pas de ${nf(S.stepMW, 2)} MW est ${nf(B, 2)} MW Base + ${nf(P, 2)} MW Peak. Il minimise l’écart au carré entre la courbe et le bloc. Le deuxième meilleur bloc, ${nf(second.B, 2)} + ${nf(second.P, 2)}, présente un indice de ${nf(second.idx, 2)}.`
+      : `Le bloc analysé est ${nf(B, 2)} MW Base + ${nf(P, 2)} MW Peak, avec un indice d’écart de ${nf(sseIdx(B, P), 2)}. Le bloc optimal est ${nf(best.B, 2)} + ${nf(best.P, 2)}.`);
+    ps.push(`Avec ce bloc, ${pct(r.ach / r.conso)} de la consommation est achetée au spot (${nf(r.ach * A, 0)} MWh/an), pendant ${nf(r.hAch * A, 0)} h/an. Le surplus revendu atteint ${nf(r.inj * A, 0)} MWh/an, soit ${pct(r.bloc ? r.inj / r.bloc : 0)} du bloc. La position nette est ${r.ach >= r.inj ? 'acheteuse' : 'vendeuse'} de ${pct(Math.abs(r.ach - r.inj) / r.conso)} de la consommation.`);
+    ps.push(`Les ${nf(r.zones.avantPeak * A, 0)} MWh/an achetés entre ${S.peakStart - 3} h et ${S.peakStart} h représentent ${pct(r.ach ? r.zones.avantPeak / r.ach : 0, 0)} des achats spot. Cette plage précède la fenêtre Peak et n’est couverte que par la Base.`);
+    ps.push(`Côté surplus, ${nf(r.zones.solaire * A, 0)} MWh/an tombent d’avril à septembre entre 10 h et 17 h, plage exposée aux prix bas ou négatifs. Les jours fériés en portent ${nf(r.dtype[2].inj * A, 0)} MWh/an, car le produit Peak les inclut. La fin de fenêtre Peak en semaine (${S.peakEnd - 3} h – ${S.peakEnd} h) en porte ${nf(r.zones.finPeak * A, 0)} MWh/an, dont ${nf(r.zones.finPeakHiver * A, 0)} MWh en hiver, où la revente est plutôt favorable.`);
+    const sc = S.scenarios.map(s => { const c = blocCost(s, B, P); return `${nf(c.price, 2)} €/MWh pour le scénario ${s.name} (${stripLabel(s)}), soit ${nf(c.cost, 0)} € sur ${nf(c.vol, 0)} MWh`; });
+    if (sc.length) ps.push(`Prix moyen du bloc : ${sc.join(', ')}.`);
+    $('#note').innerHTML = ps.map(p => `<p>${p}</p>`).join('');
+  }
+  $('#copyNote').addEventListener('click', async () => {
+    const t = [...$('#note').querySelectorAll('p')].map(p => p.textContent).join('\n\n');
+    try { await navigator.clipboard.writeText(t); $('#copyNote').textContent = 'Note copiée'; }
+    catch (e) { const rg = document.createRange(); rg.selectNodeContents($('#note')); const s = getSelection(); s.removeAllRanges(); s.addRange(rg); $('#copyNote').textContent = 'Texte sélectionné, copiez-le'; }
+    setTimeout(() => ($('#copyNote').textContent = 'Copier la note'), 2500);
+  });
+
+  bindParams();
+})();
+
+</script>
+<script>
+addEventListener('DOMContentLoaded', async () => {
+  try {
+    const r = await fetch('data.zip');
+    if (!r.ok) return;
+    const b = await r.blob();
+    const f = new File([b], 'ENEDIS_R63_P_CdC_M0BC11DA_00001_20261019160959.zip', {type:'application/zip'});
+    const dt = new DataTransfer(); dt.items.add(f);
+    const inp = document.getElementById('file');
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change', {bubbles:true}));
+  } catch (e) { console.warn('autoload', e); }
+});
+</script></body>
+</html>
